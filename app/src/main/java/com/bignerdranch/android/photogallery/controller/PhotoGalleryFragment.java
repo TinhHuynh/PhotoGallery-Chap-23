@@ -4,6 +4,7 @@ import android.content.Context;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -15,6 +16,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.bignerdranch.android.photogallery.R;
 import com.bignerdranch.android.photogallery.model.GalleryItem;
@@ -48,7 +50,7 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        new FetchItemsTask().execute();
+        fetchItems();
     }
 
     @Nullable
@@ -61,11 +63,54 @@ public class PhotoGalleryFragment extends Fragment {
 
         setupAdapter();
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            mRecyclerView.setOnScrollChangeListener(new View.OnScrollChangeListener() {
+                @Override
+                public void onScrollChange(View v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+//                    fetchNextItems();
+                    appendMorePhotos();
+                }
+            });
+        } else {
+            mRecyclerView.setOnScrollListener(new RecyclerView.OnScrollListener() {
+                @Override
+                public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                    super.onScrollStateChanged(recyclerView, newState);
+                }
+
+                @Override
+                public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                    super.onScrolled(recyclerView, dx, dy);
+//                    fetchNextItems();
+                   appendMorePhotos();
+                }
+            });
+
+        }
+
+
+
         return v;
     }
 
-    private void setupAdapter(){
-        if(isAdded()){
+    private void appendMorePhotos(){
+        if (!mRecyclerView.canScrollVertically(RecyclerView.FOCUS_DOWN)) {
+            new FetchItemsTask().execute(true);
+        }
+    }
+
+    private void fetchItems() {
+        new FetchItemsTask().execute(false);
+    }
+
+    private void fetchNextItems(){
+        if (!mRecyclerView.canScrollVertically(RecyclerView.FOCUS_DOWN)) {
+            fetchItems();
+        }
+    }
+
+    private void setupAdapter() {
+        if (isAdded()) {
             mRecyclerView.setAdapter(new PhotoAdapter(mItems));
         }
     }
@@ -78,12 +123,12 @@ public class PhotoGalleryFragment extends Fragment {
             mTitleTextView = (TextView) itemView;
         }
 
-        public void bindGalleryItem(GalleryItem galleryItem){
+        public void bindGalleryItem(GalleryItem galleryItem) {
             mTitleTextView.setText(galleryItem.toString());
         }
     }
 
-    private class PhotoAdapter extends RecyclerView.Adapter<PhotoHolder>{
+    private class PhotoAdapter extends RecyclerView.Adapter<PhotoHolder> {
         private List<GalleryItem> mGalleryItems;
 
         public PhotoAdapter(List<GalleryItem> galleryItems) {
@@ -108,33 +153,30 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
-    private class FetchItemsTask extends AsyncTask<Void, Void, List<GalleryItem>>{
+    private class FetchItemsTask extends AsyncTask<Boolean, Void, List<GalleryItem>> {
+        boolean mMorePhotos;
 
         @Override
-        protected List<GalleryItem> doInBackground(Void... params) {
+        protected List<GalleryItem> doInBackground(Boolean... params) {
+            mMorePhotos = params[0];
+            if(mMorePhotos) {
+                FlickrFetchr.updatePage();
+            }
+            Log.i("FlickrFetchr", String.valueOf(mMorePhotos));
             return new FlickrFetchr().fetchItems();
         }
 
         @Override
         protected void onPostExecute(List<GalleryItem> galleryItems) {
-            mItems = galleryItems;
-            setupAdapter();
+
+            if(!mMorePhotos) {
+                mItems = galleryItems;
+                setupAdapter();
+            }else{
+                mItems.addAll(galleryItems);
+                mRecyclerView.getAdapter().notifyDataSetChanged();
+            }
         }
     }
-
-    private class PhotoLoader extends AsyncTaskLoader {
-
-        public PhotoLoader(Context context) {
-            super(context);
-        }
-
-        @Override
-        public Object loadInBackground() {
-            return null;
-        }
-
-
-    }
-
 
 }

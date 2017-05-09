@@ -4,17 +4,25 @@ import android.net.Uri;
 import android.util.Log;
 
 import com.bignerdranch.android.photogallery.model.GalleryItem;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -27,6 +35,8 @@ public class FlickrFetchr {
     private static final String TAG = "FlickrFetchr";
 
     private static final String API_KEY = "50c991816ca69773cd7ba41762744a72";
+
+    private static int sPage = 1;
 
     public byte[] getUrlBytes(String urlSpec) throws IOException {
         URL url = new URL(urlSpec);
@@ -58,45 +68,71 @@ public class FlickrFetchr {
 
     public List<GalleryItem> fetchItems() {
         List<GalleryItem> items = new ArrayList<>();
-        try{
+        try {
             String url = Uri.parse("https://api.flickr.com/services/rest/")
                     .buildUpon()
                     .appendQueryParameter("method", "flickr.photos.getRecent")
                     .appendQueryParameter("api_key", API_KEY)
+                    .appendQueryParameter("page", String.valueOf(FlickrFetchr.getPage()))
                     .appendQueryParameter("format", "json")
                     .appendQueryParameter("nojsoncallback", "1")
                     .appendQueryParameter("extras", "url_s")
                     .build().toString();
             String jsonString = getUrlString(url);
             Log.i(TAG, "Received JSON: " + jsonString);
-            JSONObject jsonBody = new JSONObject(jsonString);
-            parseItems(items, jsonBody);
-        }catch (IOException e){
+            String editedJsonString = editJsonString(jsonString);
+            Log.i(TAG, "Edited JSON: " + editedJsonString);
+            longInfo(editedJsonString);
+            items = parseItems(items, editedJsonString);
+        } catch (IOException e) {
             Log.e(TAG, "Failed to receive items", e);
-        } catch (JSONException e) {
-            Log.e(TAG, "Failed to parse JSON", e);
         }
         return items;
     }
 
-    private void parseItems(List<GalleryItem> items, JSONObject jsonBody) throws JSONException {
-        JSONObject photosJsonObject = jsonBody.getJSONObject("photos");
-        JSONArray photoJsonArray = photosJsonObject.getJSONArray("photo");
+    private String editJsonString(String jsonString) throws IOException {
+        StringBuilder builder = new StringBuilder(jsonString);
+        // create json array
+        int index = builder.indexOf("[");
+        builder.replace(0, index, "");
 
-        for(int i = 0; i < photoJsonArray.length(); i++){
-            JSONObject photoJsonObject = photoJsonArray.getJSONObject(i);
+        index = builder.indexOf("},\"stat\":\"ok\"}");
 
-            GalleryItem galleryItem = new GalleryItem();
-            galleryItem.setId(photoJsonObject.getString("id"));
-            galleryItem.setCaption(photoJsonObject.getString("title"));
-
-            if(photoJsonObject.has("url_s")){
-                galleryItem.setUrl(photoJsonObject.getString("url_s"));
-            }
-            items.add(galleryItem);
-        }
+        builder.replace(index, builder.toString().length(), "");
+        return builder.toString();
     }
 
+    public void longInfo(String str) {
+        if (str.length() > 1000) {
+            Log.i(TAG, str.substring(0, 1000));
+            longInfo(str.substring(1000));
+        } else
+            Log.i(TAG, str);
+    }
+
+    private List<GalleryItem> parseItems(List<GalleryItem> items, String jsonString) {
+        Gson gson = new Gson();
+        Type listType = new TypeToken<List<GalleryItem>>() {
+        }.getType();
+        items = gson.fromJson(jsonString, listType);
+        return items;
+    }
+
+    public static int getPage() {
+        return sPage;
+    }
+
+    public static void setPage(int page) {
+        if(page > 10){
+            return;
+        }
+        sPage = page;
+    }
+
+    public static void updatePage(){
+        int page = FlickrFetchr.getPage();
+        FlickrFetchr.setPage(page++);
+    }
 
 }
 
