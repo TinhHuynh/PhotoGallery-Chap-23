@@ -1,6 +1,7 @@
 package com.bignerdranch.android.photogallery.controller;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -94,11 +95,8 @@ public class PhotoGalleryFragment extends Fragment {
             public void onGlobalLayout() {
                 mRecyclerView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                 int width = mRecyclerView.getMeasuredWidth();
-                int noOfColumns = 3;
-                if (width >= 1000) {
-                    noOfColumns = 4;
-                }
-                Toast.makeText(getActivity(), width + "-" + noOfColumns, Toast.LENGTH_LONG).show();
+                float scalefactor = getResources().getDisplayMetrics().density * 100;
+                int noOfColumns = (int) ((int) width / scalefactor);
                 mRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), noOfColumns));
             }
         });
