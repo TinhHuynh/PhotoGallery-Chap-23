@@ -15,6 +15,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -59,7 +60,6 @@ public class PhotoGalleryFragment extends Fragment {
         View v = inflater.inflate(R.layout.fragment_photo_gallery, container, false);
 
         mRecyclerView = (RecyclerView) v.findViewById(R.id.fragment_photo_gallery_recycler_view);
-        mRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
 
         setupAdapter();
 
@@ -82,18 +82,32 @@ public class PhotoGalleryFragment extends Fragment {
                 public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
                     super.onScrolled(recyclerView, dx, dy);
 //                    fetchNextItems();
-                   appendMorePhotos();
+                    appendMorePhotos();
                 }
             });
 
         }
 
+        ViewTreeObserver observer = mRecyclerView.getViewTreeObserver();
+        observer.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                mRecyclerView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                int width = mRecyclerView.getMeasuredWidth();
+                int noOfColumns = 3;
+                if (width >= 1000) {
+                    noOfColumns = 4;
+                }
+                Toast.makeText(getActivity(), width + "-" + noOfColumns, Toast.LENGTH_LONG).show();
+                mRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), noOfColumns));
+            }
+        });
 
 
         return v;
     }
 
-    private void appendMorePhotos(){
+    private void appendMorePhotos() {
         if (!mRecyclerView.canScrollVertically(RecyclerView.FOCUS_DOWN)) {
             new FetchItemsTask().execute(true);
         }
@@ -103,7 +117,7 @@ public class PhotoGalleryFragment extends Fragment {
         new FetchItemsTask().execute(false);
     }
 
-    private void fetchNextItems(){
+    private void fetchNextItems() {
         if (!mRecyclerView.canScrollVertically(RecyclerView.FOCUS_DOWN)) {
             fetchItems();
         }
@@ -159,7 +173,7 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         protected List<GalleryItem> doInBackground(Boolean... params) {
             mMorePhotos = params[0];
-            if(mMorePhotos) {
+            if (mMorePhotos) {
                 FlickrFetchr.updatePage();
             }
             Log.i("FlickrFetchr", String.valueOf(mMorePhotos));
@@ -169,10 +183,10 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         protected void onPostExecute(List<GalleryItem> galleryItems) {
 
-            if(!mMorePhotos) {
+            if (!mMorePhotos) {
                 mItems = galleryItems;
                 setupAdapter();
-            }else{
+            } else {
                 mItems.addAll(galleryItems);
                 mRecyclerView.getAdapter().notifyDataSetChanged();
             }
